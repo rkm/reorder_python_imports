@@ -4,6 +4,8 @@ import sys
 
 import six
 
+VERSION_IMPORT_TPL = "VersionImport('py3', 'six.moves', '{}', False)"
+
 
 def main():   # type: () -> int
     assert not six.PY2, 'This must be run in at least python 3'
@@ -16,7 +18,7 @@ def main():   # type: () -> int
                 continue
 
             if move.mod == 'builtins':
-                removes.append('from six.moves import {}'.format(move.name))
+                removes.append(VERSION_IMPORT_TPL.format(move.name))
             else:
                 renames.append('six.moves={}:{}'.format(move.mod, move.name))
         elif isinstance(move, six.MovedModule):
@@ -46,12 +48,12 @@ def main():   # type: () -> int
     print(
         '# GENERATED VIA {}\n'
         '# Using six=={}\n'
-        'SIX_REMOVALS = [\n{}]\n'
-        'SIX_RENAMES = [\n{}]\n'
+        'SIX_REMOVALS = (\n{})\n'
+        'SIX_RENAMES = (\n{})\n'
         '# END GENERATED\n'.format(
             os.path.basename(sys.argv[0]),
             six.__version__,
-            ''.join('    {!r},\n'.format(r) for r in sorted(removes)),
+            ''.join('    {},\n'.format(r) for r in sorted(removes)),
             ''.join('    {!r},\n'.format(r) for r in sorted(renames)),
         ),
     )

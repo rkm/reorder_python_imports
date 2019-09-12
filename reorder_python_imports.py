@@ -12,6 +12,7 @@ import sys
 import tokenize
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import Generator
 from typing import Iterable
 from typing import List
@@ -38,6 +39,9 @@ class CodeType(object):
 
 
 CodePartition = collections.namedtuple('CodePartition', ('code_type', 'src'))
+VersionImport = collections.namedtuple(
+    'VersionImport', ('version', 'module', 'attr', 'include_in_help'),
+)
 
 TERMINATES_COMMENT = frozenset((tokenize.NL, tokenize.ENDMARKER))
 TERMINATES_DOCSTRING = frozenset((tokenize.NEWLINE, tokenize.ENDMARKER))
@@ -521,55 +525,72 @@ def _report_diff(contents, new_contents, filename):
 
 
 FUTURE_IMPORTS = (
-    ('py22', ('nested_scopes',)),
-    ('py23', ('generators',)),
-    ('py26', ('with_statement',)),
-    (
-        'py3',
-        ('division', 'absolute_import', 'print_function', 'unicode_literals'),
-    ),
-    ('py37', ('generator_stop',)),
-)  # type: Tuple[Tuple[str, Tuple[str, ...]], ...]
+    VersionImport('py22', '__future__', 'nested_scopes', True),
+    VersionImport('py23', '__future__', 'generators', True),
+    VersionImport('py26', '__future__', 'with_statement', True),
+    VersionImport('py3', '__future__', 'absolute_import', True),
+    VersionImport('py3', '__future__', 'division', True),
+    VersionImport('py3', '__future__', 'print_function', True),
+    VersionImport('py3', '__future__', 'unicode_literals', True),
+    VersionImport('py37', '__future__', 'generator_stop', True),
+)
 
 
-def _add_future_options(parser):
+def _add_version_options(parser):
     # type: (argparse.ArgumentParser) -> None
+    vis = collections.defaultdict(list)  # type: Dict[str, List[VersionImport]]
+    for vi in FUTURE_IMPORTS + SIX_REMOVALS:
+        vis[vi.version].append(vi)
+
     prev = []  # type: List[str]
-    for py, removals in FUTURE_IMPORTS:
+    for py in sorted(vis):
         opt = '--{}-plus'.format(py)
-        futures = ', '.join(removals)
+
+        module_attrs = ', '.join(
+            sorted(
+                '{}.{}'.format(vi.module, vi.attr)
+                for vi in vis[py]
+                if vi.include_in_help
+            ),
+        )
         implies = '. implies: {}'.format(', '.join(prev)) if prev else ''
         parser.add_argument(
             opt, action='store_true',
-            help='Remove obsolete future imports ({}){}'.format(
-                futures, implies,
+            help='Remove obsolete imports ({}){}'.format(
+                module_attrs, implies,
             ),
         )
+
         prev.append(opt)
 
 
-def _future_removals(args):
+def _version_removals(args):
     # type: (argparse.Namespace) -> Generator[str, None, None]
     implied = False
-    to_remove = []  # type: List[str]
-    for py, removals in reversed(FUTURE_IMPORTS):
-        implied |= getattr(args, '{}_plus'.format(py))
+    to_remove = collections.defaultdict(list)  # type: Dict[str, List[str]]
+    for vi in sorted(
+        FUTURE_IMPORTS + SIX_REMOVALS,
+        key=lambda vi: vi.version,
+        reverse=True,
+    ):
+        if not implied:
+            implied |= getattr(args, '{}_plus'.format(vi.version))
         if implied:
-            to_remove.extend(removals)
-    if to_remove:
-        yield 'from __future__ import {}'.format(', '.join(to_remove))
+            to_remove[vi.module].append(vi.attr)
+    for module, attrs in to_remove.items():
+        yield 'from {} import {}'.format(module, ', '.join(attrs))
 
 
 # GENERATED VIA generate-six-info
 # Using six==1.11.0
-SIX_REMOVALS = [
-    'from six.moves import filter',
-    'from six.moves import input',
-    'from six.moves import map',
-    'from six.moves import range',
-    'from six.moves import zip',
-]
-SIX_RENAMES = [
+SIX_REMOVALS = (
+    VersionImport('py3', 'six.moves', 'filter', False),
+    VersionImport('py3', 'six.moves', 'input', False),
+    VersionImport('py3', 'six.moves', 'map', False),
+    VersionImport('py3', 'six.moves', 'range', False),
+    VersionImport('py3', 'six.moves', 'zip', False),
+)
+SIX_RENAMES = (
     'six.moves.BaseHTTPServer=http.server',
     'six.moves.CGIHTTPServer=http.server',
     'six.moves.SimpleHTTPServer=http.server',
@@ -632,23 +653,17 @@ SIX_RENAMES = [
     'six=functools:wraps',
     'six=io:BytesIO',
     'six=io:StringIO',
-]
+)
 # END GENERATED
 
 
 def _is_py3(args):  # type: (argparse.Namespace) -> bool
-    for py, _ in FUTURE_IMPORTS:
-        if py.startswith('py3') and getattr(args, '{}_plus'.format(py)):
-            return True
-    else:
-        return False
-
-
-def _six_removals(args):  # type: (argparse.Namespace) -> List[str]
-    if _is_py3(args):
-        return SIX_REMOVALS
-    else:
-        return []
+    return any(
+        vi.version.startswith('py3') and
+        getattr(args, '{}_plus'.format(vi.version))
+        for vi
+        in FUTURE_IMPORTS
+    )
 
 
 def _six_replaces(args):  # type: (argparse.Namespace) -> List[ImportToReplace]
@@ -742,11 +757,10 @@ def main(argv=None):  # type: (Optional[Sequence[str]]) -> int
         ),
     )
 
-    _add_future_options(parser)
+    _add_version_options(parser)
 
     args = parser.parse_args(argv)
-    args.remove_import.extend(_future_removals(args))
-    args.remove_import.extend(_six_removals(args))
+    args.remove_import.extend(_version_removals(args))
     args.replace_import.extend(_six_replaces(args))
 
     retv = 0
