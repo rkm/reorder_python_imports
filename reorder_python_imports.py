@@ -520,29 +520,39 @@ def _report_diff(contents, new_contents, filename):
     print(diff, end='')
 
 
-FUTURE_IMPORTS = (
-    ('py22', ('nested_scopes',)),
-    ('py23', ('generators',)),
-    ('py26', ('with_statement',)),
+VERSION_IMPORTS = (
+    ('py22', ('nested_scopes',), ''),
+    ('py23', ('generators',), ''),
+    ('py26', ('with_statement',), ''),
     (
         'py3',
         ('division', 'absolute_import', 'print_function', 'unicode_literals'),
+        '',
     ),
-    ('py37', ('generator_stop',)),
-)  # type: Tuple[Tuple[str, Tuple[str, ...]], ...]
+    (
+        'py33',
+        ('division', 'absolute_import', 'print_function', 'unicode_literals'),
+        '. Rewrites mock imports to use unittest.mock',
+    ),
+    (
+        'py37',
+        ('generator_stop',),
+        '. Rewrites mock imports to use unittest.mock',
+    ),
+)  # type: Tuple[Tuple[str, Tuple[str, ...], str], ...]
 
 
-def _add_future_options(parser):
+def _add_version_options(parser):
     # type: (argparse.ArgumentParser) -> None
     prev = []  # type: List[str]
-    for py, removals in FUTURE_IMPORTS:
+    for py, removals, notes in VERSION_IMPORTS:
         opt = '--{}-plus'.format(py)
         futures = ', '.join(removals)
         implies = '. implies: {}'.format(', '.join(prev)) if prev else ''
         parser.add_argument(
             opt, action='store_true',
-            help='Remove obsolete future imports ({}){}'.format(
-                futures, implies,
+            help='Remove obsolete future imports ({}){}{}'.format(
+                futures, implies, notes,
             ),
         )
         prev.append(opt)
@@ -552,7 +562,7 @@ def _version_removals(args):
     # type: (argparse.Namespace) -> Generator[str, None, None]
     implied = False
     to_remove = []  # type: List[str]
-    for py, removals in reversed(FUTURE_IMPORTS):
+    for py, removals, _ in reversed(VERSION_IMPORTS):
         implied |= getattr(args, '{}_plus'.format(py))
         if implied:
             to_remove.extend(removals)
@@ -563,6 +573,26 @@ def _version_removals(args):
         for removal in SIX_REMOVALS:
             yield removal
         yield 'from io import open'
+
+
+# GENERATED VIA generate-mock-info
+# Using mock==2.0.0
+MOCK_RENAMES = [
+    'mock=unittest.mock:ANY',
+    'mock=unittest.mock:DEFAULT',
+    'mock=unittest.mock:FILTER_DIR',
+    'mock=unittest.mock:MagicMock',
+    'mock=unittest.mock:Mock',
+    'mock=unittest.mock:NonCallableMagicMock',
+    'mock=unittest.mock:NonCallableMock',
+    'mock=unittest.mock:PropertyMock',
+    'mock=unittest.mock:call',
+    'mock=unittest.mock:create_autospec',
+    'mock=unittest.mock:mock_open',
+    'mock=unittest.mock:patch',
+    'mock=unittest.mock:sentinel',
+]
+# END GENERATED
 
 
 # GENERATED VIA generate-six-info
@@ -641,19 +671,25 @@ SIX_RENAMES = [
 # END GENERATED
 
 
-def _is_py3(args):  # type: (argparse.Namespace) -> bool
-    for py, _ in FUTURE_IMPORTS:
-        if py.startswith('py3') and getattr(args, '{}_plus'.format(py)):
+def _is_py3(args, minor=''):  # type: (argparse.Namespace, str) -> bool
+    version = 'py3{}'.format(minor)
+    for py, _, _ in VERSION_IMPORTS:
+        if py.startswith(version) and getattr(args, '{}_plus'.format(version)):
             return True
     else:
         return False
 
 
-def _six_replaces(args):  # type: (argparse.Namespace) -> List[ImportToReplace]
-    if _is_py3(args):
-        return [_validate_replace_import(s) for s in SIX_RENAMES]
+def _version_replaces(args):
+    # type: (argparse.Namespace) -> List[ImportToReplace]
+    if _is_py3(args, '3'):
+        renames = MOCK_RENAMES + SIX_RENAMES
+    elif _is_py3(args):
+        renames = SIX_RENAMES
     else:
         return []
+
+    return [_validate_replace_import(s) for s in renames]
 
 
 def _validate_import(s):  # type: (str) -> str
@@ -740,11 +776,11 @@ def main(argv=None):  # type: (Optional[Sequence[str]]) -> int
         ),
     )
 
-    _add_future_options(parser)
+    _add_version_options(parser)
 
     args = parser.parse_args(argv)
     args.remove_import.extend(_version_removals(args))
-    args.replace_import.extend(_six_replaces(args))
+    args.replace_import.extend(_version_replaces(args))
 
     retv = 0
     for filename in args.filenames:

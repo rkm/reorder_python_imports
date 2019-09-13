@@ -885,6 +885,27 @@ def test_py3_plus_does_not_unsix_moves_urllib(tmpdir):
     assert f.read() == 'from six.moves import urllib\n'
 
 
+def test_py33_plus_renames_mock(tmpdir):
+    f = tmpdir.join('f.py')
+    f.write('from mock import patch\n')
+    assert main((str(f), '--py33-plus'))
+    assert f.read() == 'from unittest.mock import patch\n'
+
+
+def test_py3_plus_does_not_rename_mock(tmpdir):
+    f = tmpdir.join('f.py')
+    f.write('from mock import patch\n')
+    assert not main((str(f), '--py3-plus'))
+    assert f.read() == 'from mock import patch\n'
+
+
+def test_py33_plus_does_not_rename_mock(tmpdir):
+    f = tmpdir.join('f.py')
+    f.write('from mock import CallableMixin\n')
+    assert not main((str(f), '--py33-plus'))
+    assert f.read() == 'from mock import CallableMixin\n'
+
+
 @pytest.mark.parametrize('opt', ('--add-import', '--remove-import'))
 @pytest.mark.parametrize('s', ('syntax error', '"import os"'))
 def test_invalid_add_remove_syntaxes(tmpdir, capsys, opt, s):

@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+import os.path
+import sys
+import unittest.mock
+
+import mock
+import six
+
+
+def main():  # type: () -> int
+    assert not six.PY2, 'This must be run in at least python 3'
+
+    renames = [
+        'mock=unittest.mock:{}'.format(attr)
+        for attr in sorted(
+            set(mock.__all__).intersection(unittest.mock.__all__),
+        )
+    ]
+
+    print(
+        '# GENERATED VIA {}\n'
+        '# Using mock=={}\n'
+        'MOCK_RENAMES = [\n{}]\n'
+        '# END GENERATED\n'.format(
+            os.path.basename(sys.argv[0]),
+            mock.__version__,
+            ''.join('    {!r},\n'.format(r) for r in sorted(renames)),
+        ),
+    )
+
+    return 0
+
+
+if __name__ == '__main__':
+    exit(main())
