@@ -530,8 +530,15 @@ VERSION_IMPORTS = (
         ('division', 'absolute_import', 'print_function', 'unicode_literals'),
         '',
     ),
-    ('py37', ('generator_stop',),
-    '. Rewrites mock imports to use unittest.mock',
+    (
+        'py33',
+        (),
+        '. Rewrites mock imports to use unittest.mock',
+    ),
+    (
+        'py37',
+        ('generator_stop',),
+        '. Rewrites mock imports to use unittest.mock',
     ),
 )  # type: Tuple[Tuple[str, Tuple[str, ...], str], ...]
 
