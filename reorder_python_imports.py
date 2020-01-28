@@ -538,7 +538,7 @@ def _add_version_options(parser):
     # type: (argparse.ArgumentParser) -> None
     prev = ''  # type: str
     for py, removals, notes in VERSION_IMPORTS:
-        opt = '--py{}-plus'.format(str(py[0]) + (str(py[1]) if py[1] else ''))
+        opt = '--py{}{}-plus'.format(py[0], py[1] or '')
         futures = ', '.join(removals)
         implies = '. Implies {}'.format(prev) if prev else ''
         parser.add_argument(
