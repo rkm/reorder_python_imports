@@ -917,6 +917,10 @@ def test_fix_cr():
             '--py3-plus',
             '',
         ),
+        (
+            '--py37-plus',
+            '',
+        ),
     ),
 )
 def test_py_options(tmpdir, opt, expected):
@@ -964,12 +968,6 @@ def test_py3_plus_does_not_unsix_moves_urllib(tmpdir):
     assert not main((str(f), '--py3-plus'))
     assert f.read() == 'from six.moves import urllib\n'
 
-def test_py33_plus_renames_mock(tmpdir):
-    f = tmpdir.join('f.py')
-    f.write('from mock import patch\n')
-    assert main((str(f), '--py33-plus'))
-    assert f.read() == 'from unittest.mock import patch\n'
-
 
 def test_py3_plus_does_not_rename_mock(tmpdir):
     f = tmpdir.join('f.py')
@@ -977,12 +975,6 @@ def test_py3_plus_does_not_rename_mock(tmpdir):
     assert not main((str(f), '--py3-plus'))
     assert f.read() == 'from mock import patch\n'
 
-
-def test_py33_plus_does_not_rename_mock(tmpdir):
-    f = tmpdir.join('f.py')
-    f.write('from mock import CallableMixin\n')
-    assert not main((str(f), '--py33-plus'))
-    assert f.read() == 'from mock import CallableMixin\n'
 
 def test_py3_plus_removes_python_future_imports(tmpdir):
     f = tmpdir.join('f.py')
@@ -996,6 +988,7 @@ def test_py3_plus_removes_builtins_star_import(tmpdir):
     f.write('from builtins import *')
     assert main((str(f), '--py3-plus'))
     assert f.read() == ''
+
 
 @pytest.mark.parametrize('opt', ('--add-import', '--remove-import'))
 @pytest.mark.parametrize('s', ('syntax error', '"import os"'))

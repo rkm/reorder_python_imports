@@ -522,25 +522,34 @@ def _report_diff(contents, new_contents, filename):
 
 
 VERSION_IMPORTS = (
-    ('py22', ('nested_scopes',), ''),
-    ('py23', ('generators',), ''),
-    ('py26', ('with_statement',), ''),
+    ((2, 2), ('nested_scopes',), ''),
+    ((2, 3), ('generators',), ''),
+    ((2, 6), ('with_statement',), ''),
     (
-        'py3',
+        (3, 0),
         ('division', 'absolute_import', 'print_function', 'unicode_literals'),
-        '',
-    ),
-    (
-        'py33',
-        (),
         '. Rewrites mock imports to use unittest.mock',
     ),
-    (
-        'py37',
-        ('generator_stop',),
-        '. Rewrites mock imports to use unittest.mock',
-    ),
-)  # type: Tuple[Tuple[str, Tuple[str, ...], str], ...]
+    ((3, 7), ('generator_stop',), ''),
+)  # type: Tuple[Tuple[Tuple[int, int], Tuple[str, ...], str], ...]
+
+
+def _add_version_options(parser):
+    # type: (argparse.ArgumentParser) -> None
+    prev = ''  # type: str
+    for py, removals, notes in VERSION_IMPORTS:
+        opt = '--py{}-plus'.format(str(py[0]) + (str(py[1]) if py[1] else ''))
+        futures = ', '.join(removals)
+        implies = '. Implies {}'.format(prev) if prev else ''
+        parser.add_argument(
+            opt, action='store_const', dest='min_version', default=(2, 2),
+            const=(py[0], py[1]),
+            help='Remove obsolete future imports ({}){}{}'.format(
+                futures, notes, implies,
+            ),
+        )
+        prev = opt
+
 
 BUILTINS = (  # from python-future
     'ascii', 'bytes', 'chr', 'dict', 'filter', 'hex', 'input', 'int', 'list',
@@ -549,34 +558,18 @@ BUILTINS = (  # from python-future
 )
 
 
-def _add_version_options(parser):
-    # type: (argparse.ArgumentParser) -> None
-    prev = []  # type: List[str]
-    for py, removals, notes in VERSION_IMPORTS:
-        opt = '--{}-plus'.format(py)
-        futures = ', '.join(removals)
-        implies = '. implies: {}'.format(', '.join(prev)) if prev else ''
-        parser.add_argument(
-            opt, action='store_true',
-            help='Remove obsolete future imports ({}){}{}'.format(
-                futures, implies, notes,
-            ),
-        )
-        prev.append(opt)
-
-
 def _version_removals(args):
     # type: (argparse.Namespace) -> Generator[str, None, None]
     implied = False
     to_remove = []  # type: List[str]
     for py, removals, _ in reversed(VERSION_IMPORTS):
-        implied |= getattr(args, '{}_plus'.format(py))
+        implied |= args.min_version >= py
         if implied:
             to_remove.extend(removals)
     if to_remove:
         yield 'from __future__ import {}'.format(', '.join(to_remove))
 
-    if _is_py3(args):
+    if args.min_version >= (3,):
         for removal in SIX_REMOVALS:
             yield removal
         yield 'from io import open'
@@ -684,20 +677,11 @@ SIX_RENAMES = [
 # END GENERATED
 
 
-def _is_py3(args, minor=''):  # type: (argparse.Namespace, str) -> bool
-    version = 'py3{}'.format(minor)
-    for py, _, _ in VERSION_IMPORTS:
-        if py.startswith(version) and getattr(args, '{}_plus'.format(version)):
-            return True
-    else:
-        return False
-
-
 def _version_replaces(args):
     # type: (argparse.Namespace) -> List[ImportToReplace]
-    if _is_py3(args, '3'):
+    if args.min_version >= (3, 3):
         renames = MOCK_RENAMES + SIX_RENAMES
-    elif _is_py3(args):
+    elif args.min_version >= (3,):
         renames = SIX_RENAMES
     else:
         return []
