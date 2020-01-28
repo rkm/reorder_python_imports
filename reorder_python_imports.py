@@ -679,10 +679,8 @@ SIX_RENAMES = [
 
 def _version_replaces(args):
     # type: (argparse.Namespace) -> List[ImportToReplace]
-    if args.min_version >= (3, 3):
+    if args.min_version >= (3,):
         renames = MOCK_RENAMES + SIX_RENAMES
-    elif args.min_version >= (3,):
-        renames = SIX_RENAMES
     else:
         return []
 

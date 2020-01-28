@@ -906,20 +906,22 @@ def test_fix_cr():
             '--py22-plus',
             'from __future__ import unicode_literals\n'
             'from __future__ import with_statement\n\n'
-            'from io import open\n',
+            'from io import open\n\n'
+            'from mock import patch\n',
         ),
         (
             '--py26-plus',
             'from __future__ import unicode_literals\n\n'
-            'from io import open\n',
+            'from io import open\n\n'
+            'from mock import patch\n',
         ),
         (
             '--py3-plus',
-            '',
+            'from unittest.mock import patch\n',
         ),
         (
             '--py37-plus',
-            '',
+            'from unittest.mock import patch\n',
         ),
     ),
 )
@@ -928,7 +930,8 @@ def test_py_options(tmpdir, opt, expected):
     f.write(
         'from __future__ import unicode_literals\n'
         'from __future__ import with_statement\n\n'
-        'from io import open\n',
+        'from io import open\n\n'
+        'from mock import patch',
     )
     main((str(f), opt))
     assert f.read() == expected
@@ -969,11 +972,11 @@ def test_py3_plus_does_not_unsix_moves_urllib(tmpdir):
     assert f.read() == 'from six.moves import urllib\n'
 
 
-def test_py3_plus_does_not_rename_mock(tmpdir):
+def test_py3_plus_renames_mock(tmpdir):
     f = tmpdir.join('f.py')
     f.write('from mock import patch\n')
-    assert not main((str(f), '--py3-plus'))
-    assert f.read() == 'from mock import patch\n'
+    assert main((str(f), '--py3-plus'))
+    assert f.read() == 'from unittest.mock import patch\n'
 
 
 def test_py3_plus_removes_python_future_imports(tmpdir):
